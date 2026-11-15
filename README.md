@@ -1,6 +1,7 @@
 # algo-sprite
 
-[算法精灵](https://abdcuze.cn)（VirtualAlgoTutor）自动学习助手。这是一个 **WorkBuddy（CodeBuddy）技能**，装好后一句话即可让 AI 帮你把平台的学习任务列表自动做完，并生成可用于复习的题目总结。
+[算法精灵](https://abdcuze.cn)（VirtualAlgoTutor）自动学习助手。这是一个 **WorkBuddy（CodeBuddy）技能**，装好后一句话即可让 AI 帮你把平台的学习任务列表自动做完，并生成可用于复习的题目总结。这是数据结构篇。
+
 
 > 平台本身是 AI 陪练式数据结构学习网站，题库 332 题、7 个章节。本技能直接对接其官方 HTTP 接口，模拟正常学习流程作答，不碰任何越权操作。
 
