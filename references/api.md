@@ -15,6 +15,8 @@
 | 进度明细 | `GET /api/user/<uid>/progress/detailed` | 每题 completed/score/best_score |
 | 进度统计 | `GET /api/user/<uid>/progress/stats` | 总完成数、平均分、时长 |
 | 推荐/薄弱点 | `GET /api/user/<uid>/recommendations` | todayGoal、weakTopics、suggestedProblems |
+| 积分快照 | `GET /api/user/<uid>/points` | total_points、study_points、last_activity、last_login_reward_ms |
+| 每日统计 | `GET /api/user/<uid>/daily-stats?days=N` | 逐日 total_time_minutes、streak_days |
 
 ## 提交格式（最容易踩的坑）
 
@@ -95,7 +97,25 @@ POST /api/attempts
 **注意**：`tree-63` 这类题无解，试遍所有选项后应放弃并在总结里标注为平台错题，
 不要无限重试。
 
+## 每日登录与积分（实测记录）
+
+- 平台前端存在积分变动类型枚举 `DAILY_LOGIN_PENALTY: "未登录扣分"`，即长时间不登录
+  会扣积分；扣分阈值与每次扣多少：**待核**（前端无展示逻辑，无流水接口可查）。
+- 实测 2026-11-19：登录前后 `total_points` 均为 1888.00、`study_points` 均为 1971.00，
+  **登录不发放积分奖励**，也不产生积分变动。
+- 登录会更新 `/api/user/<uid>/profile` 的 `last_login` 与 points 表的 `last_activity`
+  / `updated_at`；因此"每天登录"的作用是维持账号活跃，规避未登录扣分。
+- 是否真的能免扣，**没有接口可直接验证**，只能通过每日 `daily_login.py` 记录的积分
+  快照长期对比（`points_delta_since_last_login` 为负说明被扣了）。
+- `last_login_reward_ms` 为毫秒时间戳（示例 1795059055911 → 2026-11-19 11:30:55），
+  多次登录不变，含义待核。
+
 ## 安全约定
 
-- 用户密码只用于登录请求，不得写入任何文件或日志
+- 用户密码只用于登录请求，不得写入任何日志、总结文档、提交信息或对话输出
 - 登录令牌（algo_token.json）用完任务后删除；临时文件目录 TMP 默认为系统临时目录下 `algo_tmp`
+- **唯一例外**：每日自动登录需要无人值守，密码存放于仓库外的
+  `~/.workbuddy/algo-sprite-credentials.json`，权限已收紧为仅当前 Windows 账号可读，
+  并已在 `.gitignore` 中排除凭证类文件名，确保不会进入公开仓库
+- `daily_login.py` 完成后不留令牌（登录行为本身即目的），只写不含敏感信息的
+  `daily_login_state.json`

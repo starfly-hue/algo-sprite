@@ -13,6 +13,7 @@ agent_created: true
 ## 资源
 
 - `scripts/login.py` — 两阶段登录：先取验证码图片，识别后换取 JWT 令牌
+- `scripts/daily_login.py` — 每日登录保分：当天幂等、不存令牌、附带积分快照
 - `scripts/fetch_todo.py` — 按章节拉取待做题目（自动排除已完成），打印题干与选项
 - `scripts/submit.py` — 批量提交答案，带网络重试与断点续跑（已通过自动跳过）
 - `references/api.md` — 接口规范、提交格式、章节题量表、6 道平台答案键与教材不一致的坑、安全约定
@@ -59,6 +60,25 @@ agent_created: true
    日志或总结文档中。
 2. 若本次发现新的"平台答案键与教材不一致"题目，追加到 `references/api.md` 的
    坑表里，供下次直接命中。
+
+## 每日登录（保分，独立任务）
+
+平台规则里有 `DAILY_LOGIN_PENALTY`（未登录扣分），所以每天需要走一次官方登录。
+登录本身**不发放积分**（实测 total_points 登录前后不变），作用是刷新账号活跃状态。
+
+每天由定时任务自动执行，流程：
+
+1. `python scripts/daily_login.py status` — 若 `today_logged_in` 为 true 则直接结束。
+2. `python scripts/daily_login.py stage1` — 取验证码，输出 `captcha_image` 路径
+   （当天已成功登录会自动跳过，需重登时加 `--force`）。
+3. 用 ViewImage 识别验证码（区分大小写、注意 0/O、1/l/I）。
+4. `python scripts/daily_login.py stage2 <验证码>` — 完成登录。
+5. 失败处理：验证码错就重新 stage1，最多 3 次；`CREDENTIALS_*` 或密码错则停止并
+   如实报告，不要反复试密码。
+
+凭证文件：`~/.workbuddy/algo-sprite-credentials.json`（结构 `{"login_id":..,"password":..}`），
+已收紧为仅当前 Windows 账号可读，且位于仓库目录之外，不会进入 GitHub。
+状态文件：`<ALGO_TMP>/daily_login_state.json`，记录当天日期与积分快照（不含令牌、不含密码）。
 
 ## 注意事项
 

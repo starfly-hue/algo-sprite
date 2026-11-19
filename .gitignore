@@ -1,2 +1,6 @@
 __pycache__/
 *.zip
+# 登录凭证：只允许放在仓库外的 ~/.workbuddy/，绝不入库
+*credentials*.json
+daily_login_state.json
+daily_captcha*

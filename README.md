@@ -15,6 +15,7 @@
 | 纠错重试 | 答错自动换选项重试；内置平台错题清单直接命中 |
 | 进度核对 | 完成数、平均分、薄弱点，全部取自平台接口真实数据 |
 | 题目总结 | 生成 Markdown 复习资料：按知识点分类 + 全量题库汇总 |
+| 每日登录保分 | 平台有"未登录扣分"规则，每天自动登录一次维持活跃，并记录积分快照 |
 
 ## 实测战绩
 
@@ -37,6 +38,29 @@ git clone git@github.com:starfly-hue/algo-sprite.git ~/.workbuddy/skills/algo-sp
 
 流程全自动：登录（首次需要你提供一次学号密码）→ 拉题 → 分批作答 → 纠错 → 核对进度 → 生成总结文档。题量超过 50 时会先和你确认范围。
 
+## 每日自动登录（保分）
+
+平台有"未登录扣分"规则（前端枚举 `DAILY_LOGIN_PENALTY`），所以每天需要登录一次。配置两步：
+
+1. 建凭证文件 `~/.workbuddy/algo-sprite-credentials.json`：
+
+```json
+{ "login_id": "你的学号", "password": "你的密码" }
+```
+
+2. 建一个每天固定时间执行的定时任务（WorkBuddy 自动化），让它依次执行：
+
+```bash
+python ~/.workbuddy/skills/algo-sprite/scripts/daily_login.py status    # 今天已登录就结束
+python ~/.workbuddy/skills/algo-sprite/scripts/daily_login.py stage1    # 取验证码
+# 用 ViewImage 识别 captcha_image，再执行：
+python ~/.workbuddy/skills/algo-sprite/scripts/daily_login.py stage2 <验证码>
+```
+
+脚本特性：当天已登录自动跳过（`--force` 可强制重登）、不保存登录令牌、失败时输出机器可读的 JSON、每次登录记录积分快照（`points_delta_since_last_login` 为负数说明被扣分了）。
+
+> 注意：实测**登录本身不发积分**，也不产生积分变动，作用是刷新账号活跃状态。"每天登录能否完全免除未登录扣分"没有接口可以直接验证，只能靠积分快照长期观察。
+
 ## 目录结构
 
 ```
@@ -45,6 +69,7 @@ algo-sprite/
 ├── README.md
 ├── scripts/
 │   ├── login.py           # 登录 + 验证码处理
+│   ├── daily_login.py     # 每日登录保分（当天幂等 + 积分快照）
 │   ├── fetch_todo.py      # 按章节拉取待做题
 │   └── submit.py          # 批量提交（网络重试 + 断点续跑）
 └── references/
@@ -73,8 +98,9 @@ algo-sprite/
 
 ## 安全约定
 
-- 学号密码只用于登录请求，**不写入任何文件、日志或总结文档**
+- 刷题流程（`login.py`）的学号密码只用于登录请求，**不写入任何文件、日志或总结文档**
 - 登录令牌为临时文件，任务完成后自动删除
+- 每日自动登录需要无人值守，密码单独存放于**仓库之外**的 `~/.workbuddy/algo-sprite-credentials.json`，权限已收紧为仅当前系统账号可读；`.gitignore` 已排除 `*credentials*.json`，避免误提交
 
 ## License
 
