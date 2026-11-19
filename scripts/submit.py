@@ -8,6 +8,22 @@ import sys, json, os, time, uuid, urllib.request, urllib.error, random, tempfile
 
 BASE = 'https://abdcuze.cn/api/attempts'
 TMP = os.environ.get('ALGO_TMP', os.path.join(tempfile.gettempdir(), "algo_tmp"))
+ANSWERS = os.environ.get('ALGO_ANSWERS') or os.path.join(
+    os.path.expanduser('~'), '.workbuddy', 'algo-sprite-answers.json')
+
+
+def merge_answers(items):
+    """把通过的答案合并进统一答案库（原子写，避免中断损坏）。"""
+    try:
+        db = json.load(open(ANSWERS, encoding='utf-8')) if os.path.isfile(ANSWERS) else {}
+    except (OSError, ValueError):
+        db = {}
+    db.update(items)
+    os.makedirs(os.path.dirname(ANSWERS), exist_ok=True)
+    tmp = ANSWERS + '.tmp'
+    json.dump(db, open(tmp, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
+    os.replace(tmp, ANSWERS)
+    return len(db)
 
 
 def submit(token, code, opt):
@@ -45,17 +61,23 @@ def main():
     auth = json.load(open(os.path.join(TMP, 'algo_token.json'), encoding='utf-8'))
     token = auth['token']
     results = json.load(open(outpath, encoding='utf-8')) if os.path.exists(outpath) else {}
+    passed_items = {c: v['opt'] for c, v in results.items()
+                    if v.get('status') == 'passed' and v.get('opt')}
     for code, opt in plan.items():
         if code in results and results[code].get('status') == 'passed':
             print(f'{code} 跳过(已完成)')
             continue
         res = submit(token, code, opt)
         results[code] = {"opt": opt, **res}
+        if res.get('status') == 'passed':
+            passed_items[code] = opt
         print(f'{code} -> {opt} | {res.get("status", res.get("error"))} | score={res.get("score")}')
         json.dump(results, open(outpath, 'w', encoding='utf-8'), ensure_ascii=False, indent=1)
         time.sleep(0.8)
     ok = sum(1 for v in results.values() if v.get('status') == 'passed')
     print(f'\n合计 {len(results)} 条，通过 {ok} 条')
+    if passed_items:
+        print(f'答案库已累积 {merge_answers(passed_items)} 题 -> {ANSWERS}')
 
 
 if __name__ == '__main__':

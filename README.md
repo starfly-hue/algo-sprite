@@ -16,6 +16,7 @@
 | 进度核对 | 完成数、平均分、薄弱点，全部取自平台接口真实数据 |
 | 题目总结 | 生成 Markdown 复习资料：按知识点分类 + 全量题库汇总 |
 | 每日登录保分 | 平台有"未登录扣分"规则，每天自动登录一次维持活跃，并记录积分快照 |
+| 复习资料自动生成 | 刷完题自动产出「题库汇总」（全量题目+答案）与「题目总结」（考点+公式+题号索引） |
 
 ## 实测战绩
 
@@ -61,6 +62,27 @@ python ~/.workbuddy/skills/algo-sprite/scripts/daily_login.py stage2 <验证码>
 
 > 注意：实测**登录本身不发积分**，也不产生积分变动，作用是刷新账号活跃状态。"每天登录能否完全免除未登录扣分"没有接口可以直接验证，只能靠积分快照长期观察。
 
+## 复习资料生成
+
+**默认行为**：每次刷完题会自动产出两份 Markdown，不用另外说。
+
+也可以单独跑：
+
+```bash
+python ~/.workbuddy/skills/algo-sprite/scripts/gen_bank.py --out 题库汇总.md
+python ~/.workbuddy/skills/algo-sprite/scripts/gen_summary.py --out 题目总结.md
+```
+
+| 产物 | 内容 | 是否全自动 |
+|---|---|---|
+| 题库汇总 | 逐题列出题干、选项、✅ 标记的答案、⚠ 坑题、代码题思路 | 是 |
+| 题目总结 | 完成情况、知识点题量分布、坑题表、分章题号索引、考点速查 | 骨架自动，考点速查由 AI 基于题号索引补写 |
+
+关键机制：平台题库接口**不返回正确答案**，所以 `submit.py` 每次提交成功会把答案
+累积到 `~/.workbuddy/algo-sprite-answers.json`（仓库外，不进公开仓库）。
+`--scope done`（默认）只整理已作答章节，`--scope all` 覆盖全部 7 章 332 题。
+没有登录令牌时脚本会读本地题库缓存继续出文档，此时平台实时统计标「待核」，不会编数字。
+
 ## 目录结构
 
 ```
@@ -71,7 +93,10 @@ algo-sprite/
 │   ├── login.py           # 登录 + 验证码处理
 │   ├── daily_login.py     # 每日登录保分（当天幂等 + 积分快照）
 │   ├── fetch_todo.py      # 按章节拉取待做题
-│   └── submit.py          # 批量提交（网络重试 + 断点续跑）
+│   ├── submit.py          # 批量提交（重试 + 断点续跑 + 答案库累积）
+│   ├── report_data.py     # 报告公共数据层
+│   ├── gen_bank.py        # 生成题库汇总
+│   └── gen_summary.py     # 生成题目总结骨架
 └── references/
     └── api.md             # 接口规范、提交格式、章节题量、已知坑题清单
 ```
@@ -101,6 +126,7 @@ algo-sprite/
 - 刷题流程（`login.py`）的学号密码只用于登录请求，**不写入任何文件、日志或总结文档**
 - 登录令牌为临时文件，任务完成后自动删除
 - 每日自动登录需要无人值守，密码单独存放于**仓库之外**的 `~/.workbuddy/algo-sprite-credentials.json`，权限已收紧为仅当前系统账号可读；`.gitignore` 已排除 `*credentials*.json`，避免误提交
+- 答案库 `~/.workbuddy/algo-sprite-answers.json` 与题库缓存同样放在仓库外，`.gitignore` 已排除 `*answers*.json`、`*problems*.json`
 
 ## License
 

@@ -4,3 +4,6 @@ __pycache__/
 *credentials*.json
 daily_login_state.json
 daily_captcha*
+# 个人答题数据与题库缓存同样放仓库外
+*answers*.json
+*problems*.json

@@ -15,7 +15,10 @@ agent_created: true
 - `scripts/login.py` — 两阶段登录：先取验证码图片，识别后换取 JWT 令牌
 - `scripts/daily_login.py` — 每日登录保分：当天幂等、不存令牌、附带积分快照
 - `scripts/fetch_todo.py` — 按章节拉取待做题目（自动排除已完成），打印题干与选项
-- `scripts/submit.py` — 批量提交答案，带网络重试与断点续跑（已通过自动跳过）
+- `scripts/submit.py` — 批量提交答案，带网络重试、断点续跑、答案库自动累积
+- `scripts/report_data.py` — 报告公共数据层：题库 / 答案库 / 进度 / 坑题清单
+- `scripts/gen_bank.py` — 生成题库汇总（全量题目 + 答案 + 坑题标注）
+- `scripts/gen_summary.py` — 生成题目总结骨架（完成情况、知识点分布、题号索引）
 - `references/api.md` — 接口规范、提交格式、章节题量表、6 道平台答案键与教材不一致的坑、安全约定
 
 临时文件约定：所有脚本共用 `ALGO_TMP`（默认 `<系统临时目录>/algo_tmp`）下的
@@ -46,13 +49,24 @@ agent_created: true
    （含 6 题清单及换答案思路），不在表内的按教材备选答案重试，单题最多换 2 次。
 4. 全部通过后进入下一批，直到范围内题目清零。
 
-### 第 4 步：核对与总结
+### 第 4 步：核对进度 + 自动生成两份复习资料（必做，不要等用户再开口）
 
-1. 调用 `GET /api/user/<uid>/progress/stats` 与 `/progress/detailed`（见
-   references/api.md）核对完成数、平均分。
-2. 产出题目总结（Markdown 文件交付），结构：完成状态 → 按知识点分类的题量分布 →
-   核心结论速查 → 平台与教材不一致的题目表 → 下一步学习建议。
-   数字一律取自接口返回，禁止编造。
+1. 调用 `GET /api/user/<uid>/progress/stats` 与 `/progress/detailed` 核对完成数、平均分。
+2. 生成题库汇总（全自动）：
+   `python scripts/gen_bank.py --out <工作区>/算法精灵_题库汇总.md`
+   默认只出**已作答章节**；要覆盖全部 7 章加 `--scope all`。
+3. 生成题目总结骨架：
+   `python scripts/gen_summary.py --out <临时>/summary_skeleton.md`
+4. 读骨架的「四、分章题目索引」，按章写「考点速查」：必背公式、易错点，
+   每条挂上对应题号，数字只能来自骨架，禁止编造；写到一个临时 md 文件。
+5. 生成最终总结：
+   `python scripts/gen_summary.py --explanations <讲解.md> --out <工作区>/算法精灵_题目总结.md`
+6. 交付两份 Markdown，并在回复里报完成数、平均分（注明来自接口还是本地答案库）。
+
+数据依赖：`submit.py` 每次提交成功会把答案累积进
+`~/.workbuddy/algo-sprite-answers.json`（仓库外，不进 GitHub）；题库缓存落在
+`~/.workbuddy/algo-sprite-problems.json`。两个报告脚本没有登录令牌时会降级读本地缓存，
+此时平台实时统计标「待核」，不得编数字补空。
 
 ### 第 5 步：收尾（安全约定）
 
@@ -85,5 +99,8 @@ agent_created: true
 - 提交接口的字段坑：`problemId` 是题目 code 字符串（`basic-903`），不是数字 ID；
   `clientAttemptId` 只能是 8–64 位字母数字下划线（uuid4 的 hex 形式，带连字符会被拒）；
   选择题 `answer` 必须是 `{"optionId": "X"}` 对象；必须带 `X-Queue-Token` 头（任意 uuid hex）。
-- 代码题（exercise_type 为 code 的题）本技能未覆盖，遇到时如实告知用户，仅处理选择题。
+- 代码题走 `POST /api/attempts` 的 `{"type":"code",...}` 格式（见 references/api.md），
+  有频率限制与前置任务依赖，需慢速提交；`submit.py` 只处理选择题。
+- 题库接口 `GET /api/problems` **不含正确答案字段**，报告里的答案全部来自
+  `submit.py` 累积的答案库，所以每次提交必须用 `submit.py`，不要绕开它直接调接口。
 - 网络偶发 502（代理抖动），脚本已内置重试；若仍失败，隔几分钟再跑同一批（断点续跑安全）。

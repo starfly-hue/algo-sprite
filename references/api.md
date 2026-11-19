@@ -110,6 +110,22 @@ POST /api/attempts
 - `last_login_reward_ms` 为毫秒时间戳（示例 1795059055911 → 2026-11-19 11:30:55），
   多次登录不变，含义待核。
 
+## 报告生成与答案库
+
+`GET /api/problems` 返回的 332 题**不含正确答案字段**（字段里有
+`options`、`quiz_options`、`hints`、`knowledge_points`，但没有 `correct_answer`
+之类），判分接口也不返回正确答案。所以报告里的答案必须靠提交结果自己攒。
+
+- 答案库：`~/.workbuddy/algo-sprite-answers.json`，格式 `{"basic-903": "B"}`；
+  代码题无字母答案，用 `"CODE"` 标记已通过。
+- `submit.py` 每次提交成功自动合并进答案库（原子写），断点续跑时也会补齐历史结果。
+- 题库缓存：`~/.workbuddy/algo-sprite-problems.json`（无令牌时降级读它，
+  也会兼容读取 `<系统临时目录>/problems.json`）。
+- `gen_bank.py` / `gen_summary.py` 共用 `report_data.py`；坑题清单直接解析本文件
+  的「平台答案键的已知坑」表格，只需维护一处。
+- 两个脚本在没有登录令牌时仍能出文档，但平台实时统计会标「待核」，
+  完成数改由答案库计数，不得编造。
+
 ## 安全约定
 
 - 用户密码只用于登录请求，不得写入任何日志、总结文档、提交信息或对话输出
